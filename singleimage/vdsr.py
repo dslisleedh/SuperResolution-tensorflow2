@@ -1,5 +1,5 @@
 import tensorflow as tf
-from utils import BiocubicUpsampling2D
+from utils import *
 
 
 '''
@@ -7,7 +7,7 @@ https://arxiv.org/abs/1511.04587
 use MSE to train
 VGG-like architecture
 gradient clipping/high learning rate is applied
-use residual learning(NOT ResNet-like architecture)
+use residual learning(**NOT ResNet-like architecture**)
 '''
 class VDSR(tf.keras.models.Model):
     def __init__(self,
@@ -24,7 +24,7 @@ class VDSR(tf.keras.models.Model):
         self.scale_rate = scale_rate
         self.out_channels = out_channels
 
-        self.upscaler = tf.keras.layers.UpSampling2D(size=(scale_rate, scale_rate))
+        self.upscaler = BicubicScale2D(self.scale_rate)
         self.forward = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.out_channels if i == (self.n_layers - 1) else self.n_filters,
                                    kernel_size=3,
@@ -43,7 +43,7 @@ class VDSR(tf.keras.models.Model):
         with tf.GradientTape() as tape:
             l2regularization = tf.reduce_sum(self.losses)
             pred = self.forward(x) + x
-            loss = tf.reduce_mean(tf.math.squared_difference(y, pred))
+            loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
             total_loss = loss + l2regularization
         grads = tape.gradient(total_loss, self.forward.trainable_variables)
         self.optimizer.apply_gradients(
@@ -54,13 +54,19 @@ class VDSR(tf.keras.models.Model):
                 self.forward.trainable_variables
                 )
         )
-        return {'loss': loss}
+        psnr = compute_psnr(pred, y)
+        ssim = compute_ssim(pred, y)
+        return {'loss': loss, 'psnr': psnr, 'ssim':ssim}
 
     @tf.function
     def test_step(self, data):
-        data = self.upscaler(data)
-        loss = tf.keras.losses.mean_squared_error(self.forward(data) + data, data)
-        return {'loss': loss}
+        x, y = data
+        x = self.upscaler(x)
+        pred = self.forward(x) + x
+        loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
+        psnr = compute_psnr(pred, y)
+        ssim = compute_ssim(pred, y)
+        return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function
     def call(self, inputs, training=None, mask=None):

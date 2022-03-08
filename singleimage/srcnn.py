@@ -1,5 +1,5 @@
+from utils import *
 import tensorflow as tf
-from utils import BiocubicUpsampling2D
 
 
 '''
@@ -13,8 +13,9 @@ class SRCNN(tf.keras.models.Model):
         super(SRCNN, self).__init__()
         self.expansion_rate = expansion_rate
 
+
         self.forward = tf.keras.Sequential([
-            BiocubicUpsampling2D(self.expansion_rate),
+            BicubicScale2D(self.expansion_rate),
             tf.keras.layers.Conv2D(filters=64,
                                    kernel_size=9,
                                    padding='SAME',
@@ -30,10 +31,33 @@ class SRCNN(tf.keras.models.Model):
             tf.keras.layers.Conv2D(filters=3,
                                    kernel_size=5,
                                    padding='SAME',
-                                   strdies=1,
+                                   strides=1,
                                    activation='linear'
                                    )
         ])
+
+    @tf.function
+    def train_step(self, data):
+        x, y = data
+        with tf.GradientTape() as tape:
+            pred = self.forward(x)
+            loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
+        grads = tape.gradient(loss, self.forward.trainable_variables)
+        self.optimizer.apply_gradients(
+            zip(grads, self.forward.trainable_variables)
+        )
+        psnr = compute_psnr(pred, y)
+        ssim = compute_ssim(pred, y)
+        return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
+
+    @tf.function
+    def test_step(self, data):
+        x, y = data
+        pred = self.forward(x)
+        loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
+        psnr = compute_psnr(pred, y)
+        ssim = compute_ssim(pred, y)
+        return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     def call(self, inputs, training=None, mask=None):
         return self.forward(inputs)

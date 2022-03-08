@@ -1,3 +1,4 @@
+from utils import *
 import tensorflow as tf
 
 
@@ -56,6 +57,29 @@ class FSRCNN(tf.keras.models.Model):
                                             activation='linear'
                                             )
         ])
+
+    @tf.function
+    def train_step(self, data):
+        x, y = data
+        with tf.GradientTape() as tape:
+            pred = self.forward(x)
+            loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
+        grads = tape.gradient(loss, self.forward.trainable_variables)
+        self.optimizer.apply_gradients(
+            zip(grads, self.forward.trainable_variables)
+        )
+        psnr = compute_psnr(pred, y)
+        ssim = compute_ssim(pred, y)
+        return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
+
+    @tf.function
+    def test_step(self, data):
+        x, y = data
+        pred = self.forward(x)
+        loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
+        psnr = compute_psnr(pred, y)
+        ssim = compute_ssim(pred, y)
+        return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     def call(self, inputs, training=None, mask=None):
         return self.forward(inputs)
