@@ -56,7 +56,7 @@ class VDSR(tf.keras.models.Model):
         )
         psnr = compute_psnr(pred, y)
         ssim = compute_ssim(pred, y)
-        return {'loss': loss, 'psnr': psnr, 'ssim':ssim}
+        return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function
     def test_step(self, data):

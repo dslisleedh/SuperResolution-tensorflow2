@@ -1,3 +1,4 @@
+from einops import rearrange
 import tensorflow as tf
 
 
@@ -60,3 +61,64 @@ class GaussianBlur:
                                           [1, 1, 1, 1],
                                           padding='SAME'
                                           )
+
+
+class Patches(tf.keras.layers.Layer):
+    def __init__(self, patch_size):
+        super(Patches, self).__init__()
+        self.patch_size = patch_size
+
+    def call(self, images):
+        b, h, w, c = images.get_shape().as_list()
+        patches = tf.image.extract_patches(
+            images=images,
+            sizes=[1, self.patch_size, self.patch_size, 1],
+            strides=[1, self.patch_size, self.patch_size, 1],
+            rates=[1, 1, 1, 1],
+            padding="VALID",
+        )
+        patches = rearrange(patches, 'b hp wp (p1 p2 c) -> (b hp wp) p1 p2 c',
+                            b=b, p1=self.patch_size, p2=self.patch_size, c=c
+                            )
+        return patches
+
+
+class DegradationLayer(tf.keras.layers.Layer):
+    def __init__(self, noise_max=25 / 255, blur_sigma=10, scale_rate=4):
+        super(DegradationLayer, self).__init__()
+        self.noise = noise_max
+        self.blur_sigma = blur_sigma
+        self.scale_rate = scale_rate
+
+        self.blur = GaussianBlur(7, self.blur_sigma)
+
+    def call(self, inputs, *args, **kwargs):
+        b, h, w, c = tf.shape(inputs)
+        lr = self.blur(inputs)
+        lr = tf.image.resize(lr,
+                             (h // self.scale_rate, w // self.scale_rate),
+                             method=tf.image.ResizeMethod.BICUBIC
+                             )
+        noise = tf.random.normal(shape=(b, h // self.scale_rate, w // self.scale_rate, c),
+                                 mean=0.,
+                                 stddev=self.noise
+                                 )
+        lr = tf.clip_by_value(lr + noise,
+                              clip_value_min=0.,
+                              clip_value_max=1.
+                              )
+        return lr
+
+
+class PixelShuffle(tf.keras.layers.Layer):
+    def __init__(self,
+                 scale_rate
+                 ):
+        super(PixelShuffle, self).__init__()
+        self.scale_rate = scale_rate
+
+    def call(self, inputs, *args, **kwargs):
+        return tf.nn.depth_to_space(inputs,
+                                    block_size=self.scale_rate
+                                    )
+
