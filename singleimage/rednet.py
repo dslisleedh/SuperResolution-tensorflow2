@@ -87,21 +87,21 @@ class REDNet(tf.keras.models.Model):
         ]
 
     @tf.function
-    def forward(self, x):
+    def forward(self, x, training=False):
         mu, _ = tf.nn.moments(x,
                               axes=[1,2],
                               keepdims=True
                               )
         x = x - mu
-        x = self.upscale(x)
+        x = self.upscale(x, training=training)
         skip = [x]
         for idx, layer in enumerate(self.encoder):
-            x = layer(x)
+            x = layer(x, training=training)
             if idx != (self.n_layers // 2) - 1:
                 skip.append(x)
         skip = skip[::-1]
         for layer, s in zip(self.decoder, skip):
-            x = layer(x)
+            x = layer(x, training=training)
             x = tf.nn.relu(x + s)
         x = x + mu
         return x
@@ -110,7 +110,7 @@ class REDNet(tf.keras.models.Model):
     def train_step(self, data):
         x, y = data
         with tf.GradientTape() as tape:
-            reconstruction = self.forward(x)
+            reconstruction = self.forward(x, training=True)
             loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, reconstruction))
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(

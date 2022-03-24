@@ -42,7 +42,7 @@ class VDSR(tf.keras.models.Model):
         x = self.upscaler(x)
         with tf.GradientTape() as tape:
             l2regularization = tf.reduce_sum(self.losses)
-            pred = self.forward(x) + x
+            pred = self.forward(x, training=True) + x
             loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
             total_loss = loss + l2regularization
         grads = tape.gradient(total_loss, self.forward.trainable_variables)

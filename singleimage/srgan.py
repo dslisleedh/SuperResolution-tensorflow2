@@ -156,14 +156,14 @@ class SRGAN(tf.keras.models.Model):
         self.vgg.trainable = False
 
     def compile(self,
-              optimizer='rmsprop',
-              loss=None,
-              metrics=None,
-              loss_weights=None,
-              weighted_metrics=None,
-              run_eagerly=None,
-              steps_per_execution=None,
-              **kwargs):
+                optimizer='rmsprop',
+                loss=None,
+                metrics=None,
+                loss_weights=None,
+                weighted_metrics=None,
+                run_eagerly=None,
+                steps_per_execution=None,
+                **kwargs):
         super(SRGAN, self).compile(optimizer,
                                    loss,
                                    metrics,
@@ -182,8 +182,8 @@ class SRGAN(tf.keras.models.Model):
         
         # 1. update generator
         with tf.GradientTape() as tape:
-            reconstruction = self.generator(lr_patch)
-            disc_fake = self.discriminator(reconstruction)
+            reconstruction = self.generator(lr_patch, training=True)
+            disc_fake = self.discriminator(reconstruction, training=True)
             content_loss = tf.reduce_mean(
                 tf.keras.losses.mean_squared_error(self.vgg(hr_patch),
                                                    self.vgg(reconstruction)
@@ -204,9 +204,9 @@ class SRGAN(tf.keras.models.Model):
 
         # 2. update discriminator for k times: k == 1
         with tf.GradientTape() as tape:
-            reconstruction = self.generator(lr_patch)
-            disc_fake = self.discriminator(reconstruction)
-            disc_true = self.discriminator(hr_patch)
+            reconstruction = self.generator(lr_patch, training=True)
+            disc_fake = self.discriminator(reconstruction, training=True)
+            disc_true = self.discriminator(hr_patch, training=True)
             discriminator_loss = - tf.losses.binary_crossentropy(tf.zeros_like(disc_true),
                                                                  disc_true
                                                                  )\

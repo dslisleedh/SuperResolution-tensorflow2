@@ -65,7 +65,7 @@ class FSRCNN(tf.keras.models.Model):
     def train_step(self, data):
         x, y = data
         with tf.GradientTape() as tape:
-            pred = self.forward(x)
+            pred = self.forward(x, training=True)
             loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
         grads = tape.gradient(loss, self.forward.trainable_variables)
         self.optimizer.apply_gradients(

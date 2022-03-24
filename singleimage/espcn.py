@@ -84,18 +84,18 @@ class DRRN(tf.keras.models.Model):
                                                              )
 
     @tf.function
-    def forward(self, x):
+    def forward(self, x, training=False):
         x = self.upscaler(x)
-        featuremap = self.feature_extractor(x)
-        featuremap = self.recursive_blocks(featuremap)
-        x = x + self.reconstruction_network(featuremap)
+        featuremap = self.feature_extractor(x, training=training)
+        featuremap = self.recursive_blocks(featuremap, training=training)
+        x = x + self.reconstruction_network(featuremap, training=training)
         return x
 
     @tf.function
     def train_step(self, data):
         x, y = data
         with tf.GradientTape() as tape:
-            reconstruction = self.forward(x)
+            reconstruction = self.forward(x, training=True)
             loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, reconstruction))
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(

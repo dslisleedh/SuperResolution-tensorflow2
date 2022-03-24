@@ -124,16 +124,16 @@ class BTSRN(tf.keras.models.Model):
         ])
 
     @tf.function
-    def forward(self, inputs):
-        lr = self.lrstage(inputs)
-        hr = self.hrstage(self.upsampling(lr))
+    def forward(self, inputs, training=False):
+        lr = self.lrstage(inputs, training=training)
+        hr = self.hrstage(self.upsampling(lr), training=training)
         return hr + self.shortcut_biocubic(inputs)
 
     @tf.function
     def train_step(self, data):
         x, y = data
         with tf.GradientTape() as tape:
-            reconstruction = self.forward(x)
+            reconstruction = self.forward(x, training=True)
             loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, reconstruction))
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(

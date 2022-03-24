@@ -50,9 +50,7 @@ class IRCNN(tf.keras.models.Model):
         self.d = d
         self.output_channels = output_channel
 
-        self.upscaler = tf.keras.Sequential([
-            BicubicScale2D(self.scale_rate)
-        ])
+        self.upscaler = BicubicScale2D(self.scale_rate)
         self.forward = tf.keras.Sequential([
             DConv(d=dil,
                   n_filters=64 if i != len(d) - 1 else 3,
@@ -65,7 +63,7 @@ class IRCNN(tf.keras.models.Model):
         x, y = data
         x = self.upscaler(x)
         with tf.GradientTape() as tape:
-            pred = self.forward(x) + self.DePatch(x)
+            pred = self.forward(x, training=True)
             loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
         grads = tape.gradient(loss, self.forward.trainable_variables)
         self.optimizer.apply_gradients(
@@ -78,7 +76,7 @@ class IRCNN(tf.keras.models.Model):
     def test_step(self, data):
         x, y = data
         x = self.upscaler(x)
-        pred = self.forward(x) + self.DePatch(x)
+        pred = self.forward(x)
         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
         psnr, ssim = compute_metrics(pred, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}

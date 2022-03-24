@@ -96,14 +96,12 @@ class EDSR(tf.keras.models.Model):
                                         shape=(1, 1, 1, 3)
                                         )
 
-        self.extractor = tf.keras.Sequential([
-            tf.keras.layers.Conv2D(self.n_filters,
-                                   kernel_size=3,
-                                   activation='relu',
-                                   strides=1,
-                                   padding='SAME'
-                                   )
-        ])
+        self.extractor = tf.keras.layers.Conv2D(self.n_filters,
+                                                kernel_size=3,
+                                                activation='relu',
+                                                strides=1,
+                                                padding='SAME'
+                                                )
         self.resblocks = tf.keras.Sequential([
             ResBlock(self.n_filters) for _ in range(self.n_blocks)
         ] + [
@@ -131,9 +129,9 @@ class EDSR(tf.keras.models.Model):
         x, y = data
         x = self.get_patches(x) - self.rgb_mean
         with tf.GradientTape() as tape:
-            featuremap = self.extractor(x)
-            featuremap = self.resblocks(featuremap) + featuremap
-            reconstruction = self.upsampler(featuremap) + self.rgb_mean
+            featuremap = self.extractor(x, training=True)
+            featuremap = self.resblocks(featuremap, training=True) + featuremap
+            reconstruction = self.upsampler(featuremap, training=True) + self.rgb_mean
             loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(y, reconstruction))
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(

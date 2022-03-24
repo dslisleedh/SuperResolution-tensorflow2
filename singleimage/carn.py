@@ -94,14 +94,12 @@ class CARN(tf.keras.models.Model):
                                         shape=(1, 1, 1, 3)
                                         )
 
-        self.extractor = tf.keras.Sequential([
-            tf.keras.layers.Conv2D(self.n_filters,
-                                   kernel_size=3,
-                                   strides=1,
-                                   padding='SAME',
-                                   activation='linear'
-                                   )
-        ])
+        self.extractor = tf.keras.layers.Conv2D(self.n_filters,
+                                                kernel_size=3,
+                                                strides=1,
+                                                padding='SAME',
+                                                activation='linear'
+                                                )
         self.blocks = [
             CascadeBlock(self.n_filters) for _ in range(3)
         ]
@@ -129,14 +127,15 @@ class CARN(tf.keras.models.Model):
         x, y = data
         with tf.GradientTape() as tape:
             x = x - self.rgb_mean
-            featuremap = self.extractor(x)
+            featuremap = self.extractor(x, training=True)
             for b, p in zip(self.blocks, self.pointwises):
-                blockoutput = b(featuremap)
+                blockoutput = b(featuremap, training=True)
                 featuremap = p(tf.concat([featuremap, blockoutput],
                                          axis=-1
-                                         )
+                                         ),
+                               training=True
                                )
-            reconstruction = self.upsampler(featuremap) + self.rgb_mean
+            reconstruction = self.upsampler(featuremap, training=True) + self.rgb_mean
             loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(y, reconstruction))
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(
