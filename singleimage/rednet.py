@@ -40,7 +40,7 @@ class TransConvBlock(tf.keras.layers.Layer):
                  ):
         super(TransConvBlock, self).__init__()
         self.n_filters = n_filters
-        self.downscale = upscale
+        self.upscale = upscale
 
         self.forward = tf.keras.Sequential([
             tf.keras.layers.Conv2DTranspose(filters=self.n_filters,
@@ -49,9 +49,9 @@ class TransConvBlock(tf.keras.layers.Layer):
                                             activation='relu',
                                             padding='SAME'
                                             ),
-            tf.keras.layers.Conv2DTranspose(filters=self.n_filters,
+            tf.keras.layers.Conv2DTranspose(filters=3 if self.upscale else self.n_filters,
                                             kernel_size=3,
-                                            strides=2 if self.downscale else 1,
+                                            strides=2 if self.upscale else 1,
                                             activation='relu',
                                             padding='SAME'
                                             )
@@ -66,38 +66,44 @@ class TransConvBlock(tf.keras.layers.Layer):
 class REDNet(tf.keras.models.Model):
     def __init__(self,
                  n_filters,
-                 n_layers
+                 n_layers,
+                 scale_rate=4
                  ):
         super(REDNet, self).__init__()
         self.n_filters = n_filters
         self.n_layers = n_layers
+        self.scale_rate = scale_rate
 
+        self.upscale = BicubicScale2D(self.scale_rate)
         self.encoder = [
             ConvBlock(self.n_filters,
-                      downscale=True if i == 0 else 1
-                      ) for i in range(self.n_layers//2)
+                      downscale=True if i == 0 else False
+                      ) for i in range(self.n_layers // 2)
         ]
         self.decoder = [
             TransConvBlock(self.n_filters,
-                           upscale=True if i == (self.n_layers//2)-1 else False
-                           ) for i in range(self.n_layers//2)
+                           upscale=True if i == (self.n_layers // 2) - 1 else False
+                           ) for i in range(self.n_layers // 2)
         ]
-
-    def return_variable(self):
-        encoder_trainable_variable = [layer.trainable_variables for layer in self.encoder]
-        decoder_trainable_variable = [layer.trainable_variables for layer in self.decoder]
-        total_variable = encoder_trainable_variable + decoder_trainable_variable
-        return total_variable[0]
 
     @tf.function
     def forward(self, x):
+        mu, _ = tf.nn.moments(x,
+                              axes=[1,2],
+                              keepdims=True
+                              )
+        x = x - mu
+        x = self.upscale(x)
         skip = [x]
-        for layer in self.encoder:
+        for idx, layer in enumerate(self.encoder):
             x = layer(x)
-            skip.append(x)
+            if idx != (self.n_layers // 2) - 1:
+                skip.append(x)
+        skip = skip[::-1]
         for layer, s in zip(self.decoder, skip):
             x = layer(x)
             x = tf.nn.relu(x + s)
+        x = x + mu
         return x
 
     @tf.function
@@ -106,12 +112,11 @@ class REDNet(tf.keras.models.Model):
         with tf.GradientTape() as tape:
             reconstruction = self.forward(x)
             loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, reconstruction))
-        grads = tape.gradient(loss, self.return_variable())
+        grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(
-            zip(grads, self.return_variable())
+            zip(grads, self.trainable_variables)
         )
-        psnr = compute_psnr(reconstruction, y)
-        ssim = compute_ssim(reconstruction, y)
+        psnr, ssim = compute_metrics(reconstruction, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function
@@ -119,8 +124,7 @@ class REDNet(tf.keras.models.Model):
         x, y = data
         reconstruction = self.forward(x)
         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, reconstruction))
-        psnr = compute_psnr(reconstruction, y)
-        ssim = compute_ssim(reconstruction, y)
+        psnr, ssim = compute_metrics(reconstruction, y)
         return {'loss': loss, 'pnsr': psnr, 'ssim': ssim}
 
     @tf.function

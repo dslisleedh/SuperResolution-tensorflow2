@@ -6,6 +6,9 @@ import tensorflow as tf
 https://arxiv.org/abs/1608.00367
 use MSE Loss to train
 best trade-off parameter in paper : (d = 56, s = 12, m = 4)
+
+original paper uses PRelU but i used LeakyRelU.
+there's bug that PRelU is not working in variable input size
 '''
 class FSRCNN(tf.keras.models.Model):
     def __init__(self,
@@ -27,13 +30,13 @@ class FSRCNN(tf.keras.models.Model):
                                    kernel_size=9,
                                    padding='SAME',
                                    strides=1,
-                                   activation=tf.keras.layers.PReLU()
+                                   activation=tf.keras.layers.LeakyReLU()
                                    ),
             tf.keras.layers.Conv2D(filters=self.s,
                                    kernel_size=1,
                                    padding='VALID',
                                    strides=1,
-                                   activation=tf.keras.layers.PReLU()
+                                   activation=tf.keras.layers.LeakyReLU()
                                    )
         ] + [
             tf.keras.layers.Conv2D(filters=self.s,
@@ -43,12 +46,12 @@ class FSRCNN(tf.keras.models.Model):
                                    activation='linear'
                                    ) for _ in range(self.m)
         ] + [
-            tf.keras.layers.PReLU(),
+            tf.keras.layers.LeakyReLU(),
             tf.keras.layers.Conv2D(filters=self.d,
                                    kernel_size=1,
                                    padding='VALID',
                                    strides=1,
-                                   activation=tf.keras.layers.PReLU()
+                                   activation=tf.keras.layers.LeakyReLU()
                                    ),
             tf.keras.layers.Conv2DTranspose(filters=self.output_channels,
                                             kernel_size=9,
@@ -68,8 +71,7 @@ class FSRCNN(tf.keras.models.Model):
         self.optimizer.apply_gradients(
             zip(grads, self.forward.trainable_variables)
         )
-        psnr = compute_psnr(pred, y)
-        ssim = compute_ssim(pred, y)
+        psnr, ssim = compute_metrics(pred, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function
@@ -77,9 +79,9 @@ class FSRCNN(tf.keras.models.Model):
         x, y = data
         pred = self.forward(x)
         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
-        psnr = compute_psnr(pred, y)
-        ssim = compute_ssim(pred, y)
+        psnr, ssim = compute_metrics(pred, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     def call(self, inputs, training=None, mask=None):
         return self.forward(inputs)
+

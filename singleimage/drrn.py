@@ -1,12 +1,11 @@
 from utils import *
-from einops import rearrange
 from einops.layers.keras import Rearrange
+from einops import rearrange
 import tensorflow as tf
 
 
 '''
-https://arxiv.org/abs/1609.05158
-used pixel_shuffle to upsample + patch_learning
+pre-activation resnet like architecture
 '''
 
 
@@ -121,5 +120,3 @@ class DRRN(tf.keras.models.Model):
     @tf.function
     def call(self, inputs, training=None, mask=None):
         return self.forward(inputs)
-
-

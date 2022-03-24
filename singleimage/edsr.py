@@ -96,7 +96,6 @@ class EDSR(tf.keras.models.Model):
                                         shape=(1, 1, 1, 3)
                                         )
 
-        self.get_patches = Patches(32)
         self.extractor = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.n_filters,
                                    kernel_size=3,
@@ -126,9 +125,6 @@ class EDSR(tf.keras.models.Model):
                                    activation='linear'
                                    )
         ])
-        self.DePatch = Rearrange('(b hp wp) p1 p2 c -> b (hp p1) (wp p2) c',
-                                 hp=2, wp=2
-                                 )
 
     @tf.function
     def train_step(self, data):
@@ -137,34 +133,24 @@ class EDSR(tf.keras.models.Model):
         with tf.GradientTape() as tape:
             featuremap = self.extractor(x)
             featuremap = self.resblocks(featuremap) + featuremap
-            reconstruction = self.DePatch(self.upsampler(featuremap)) + self.rgb_mean
+            reconstruction = self.upsampler(featuremap) + self.rgb_mean
             loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(y, reconstruction))
-        grads = tape.gradient(loss,
-                              self.extractor.trainable_variables +
-                              self.resblocks.trainable_variables +
-                              self.upsampler.trainable_variables
-                              )
+        grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(
-            zip(grads,
-                self.extractor.trainable_variables +
-                self.resblocks.trainable_variables +
-                self.upsampler.trainable_variables
-                )
+            zip(grads, self.trainable_variables)
         )
-        psnr = compute_psnr(reconstruction, y)
-        ssim = compute_ssim(reconstruction, y)
+        psnr, ssim = compute_metrics(reconstruction, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function
     def test_step(self, data):
         x, y = data
-        x = self.get_patches(x) - self.rgb_mean
+        x = x - self.rgb_mean
         featuremap = self.extractor(x)
         featuremap = self.resblocks(featuremap) + featuremap
-        reconstruction = self.DePatch(self.upsampler(featuremap)) + self.rgb_mean
+        reconstruction = self.upsampler(featuremap) + self.rgb_mean
         loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(y, reconstruction))
-        psnr = compute_psnr(reconstruction, y)
-        ssim = compute_ssim(reconstruction, y)
+        psnr, ssim = compute_metrics(reconstruction, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function

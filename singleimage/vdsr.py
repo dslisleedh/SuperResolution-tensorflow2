@@ -54,8 +54,7 @@ class VDSR(tf.keras.models.Model):
                 self.forward.trainable_variables
                 )
         )
-        psnr = compute_psnr(pred, y)
-        ssim = compute_ssim(pred, y)
+        psnr, ssim = compute_metrics(pred, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function
@@ -64,8 +63,7 @@ class VDSR(tf.keras.models.Model):
         x = self.upscaler(x)
         pred = self.forward(x) + x
         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
-        psnr = compute_psnr(pred, y)
-        ssim = compute_ssim(pred, y)
+        psnr, ssim = compute_metrics(pred, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function

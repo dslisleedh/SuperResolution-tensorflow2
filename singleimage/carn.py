@@ -95,7 +95,6 @@ class CARN(tf.keras.models.Model):
                                         )
 
         self.extractor = tf.keras.Sequential([
-            Patches(32),
             tf.keras.layers.Conv2D(self.n_filters,
                                    kernel_size=3,
                                    strides=1,
@@ -123,17 +122,8 @@ class CARN(tf.keras.models.Model):
                                    activation='linear',
                                    padding='SAME',
                                    strides=1
-                                   ),
-            Rearrange('(b hp wp) p1 p2 c -> b (hp p1) (wp p2) c',
-                      hp=2, wp=2
-                      )
+                                   )
         ])
-
-    def get_trainable_variables(self):
-        blocks = [i.trainable_variables for i in self.blocks]
-        points = [i.trainable_variables for i in self.pointwises]
-        variables = blocks + points
-        return variables[0]
 
     def train_step(self, data):
         x, y = data
@@ -148,20 +138,11 @@ class CARN(tf.keras.models.Model):
                                )
             reconstruction = self.upsampler(featuremap) + self.rgb_mean
             loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(y, reconstruction))
-        grads = tape.gradient(loss,
-                              self.extractor.trainable_variables +
-                              self.upsampler.trainable_variables +
-                              self.get_trainable_variables()
-                              )
+        grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(
-            zip(grads,
-                self.extractor.trainable_variables +
-                self.upsampler.trainable_variables +
-                self.get_trainable_variables()
-                )
+            zip(grads, self.trainable_variables)
         )
-        psnr = compute_psnr(reconstruction, y)
-        ssim = compute_ssim(reconstruction, y)
+        psnr, ssim = compute_metrics(reconstruction, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     def test_step(self, data):
@@ -176,8 +157,7 @@ class CARN(tf.keras.models.Model):
                            )
         reconstruction = self.upsampler(featuremap) + self.rgb_mean
         loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(y, reconstruction))
-        psnr = compute_psnr(reconstruction, y)
-        ssim = compute_ssim(reconstruction, y)
+        psnr, ssim = compute_metrics(reconstruction, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     def call(self, inputs, training=None, mask=None):

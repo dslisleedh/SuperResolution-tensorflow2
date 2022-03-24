@@ -3,13 +3,10 @@ import tensorflow as tf
 
 
 @tf.function
-def compute_psnr(pred, label):
-    return tf.reduce_mean(tf.image.psnr(pred, label, 1.))
-
-
-@tf.function
-def compute_ssim(pred, label):
-    return tf.reduce_mean(tf.image.ssim(pred, label, 1.))
+def compute_metrics(label, pred):
+    psnr = tf.reduce_mean(tf.image.psnr(pred, label, 1.))
+    ssim = tf.reduce_mean(tf.image.ssim(pred, label, 1.))
+    return psnr, ssim
 
 
 class BicubicScale2D(tf.keras.layers.Layer):
@@ -23,7 +20,9 @@ class BicubicScale2D(tf.keras.layers.Layer):
 
     def call(self, inputs, *args, **kwargs):
         if self.input_size is None:
-            _, h, w, _ = inputs.get_shape().as_list()
+            shape = tf.shape(inputs)
+            h = shape[1]
+            w = shape[2]
         else:
             h, w = self.input_size
         return tf.image.resize(inputs,
@@ -64,16 +63,17 @@ class GaussianBlur:
 
 
 class Patches(tf.keras.layers.Layer):
-    def __init__(self, patch_size):
+    def __init__(self, patch_size, strides):
         super(Patches, self).__init__()
         self.patch_size = patch_size
+        self.strides = strides
 
     def call(self, images):
         b, h, w, c = images.get_shape().as_list()
         patches = tf.image.extract_patches(
             images=images,
             sizes=[1, self.patch_size, self.patch_size, 1],
-            strides=[1, self.patch_size, self.patch_size, 1],
+            strides=[1, self.strides, self.strides, 1],
             rates=[1, 1, 1, 1],
             padding="VALID",
         )

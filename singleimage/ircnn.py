@@ -51,7 +51,6 @@ class IRCNN(tf.keras.models.Model):
         self.output_channels = output_channel
 
         self.upscaler = tf.keras.Sequential([
-            Patches(32),
             BicubicScale2D(self.scale_rate)
         ])
         self.forward = tf.keras.Sequential([
@@ -60,33 +59,28 @@ class IRCNN(tf.keras.models.Model):
                   bn=False if i == 0 else True
                   ) for i, dil in enumerate(d)
         ])
-        self.DePatch = Rearrange('(b hp wp) p1 p2 c -> b (hp p1) (wp p2) c',
-                                 hp=2, wp=2
-                                 )
 
     @tf.function
     def train_step(self, data):
         x, y = data
         x = self.upscaler(x)
         with tf.GradientTape() as tape:
-            pred = self.DePatch(self.forward(x)) + self.DePatch(x)
+            pred = self.forward(x) + self.DePatch(x)
             loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
         grads = tape.gradient(loss, self.forward.trainable_variables)
         self.optimizer.apply_gradients(
             zip(grads, self.forward.trainable_variables)
         )
-        psnr = compute_psnr(pred, y)
-        ssim = compute_ssim(pred, y)
+        psnr, ssim = compute_metrics(pred, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function
     def test_step(self, data):
         x, y = data
         x = self.upscaler(x)
-        pred = self.DePatch(self.forward(x)) + self.DePatch(x)
+        pred = self.forward(x) + self.DePatch(x)
         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(y, pred))
-        psnr = compute_psnr(pred, y)
-        ssim = compute_ssim(pred, y)
+        psnr, ssim = compute_metrics(pred, y)
         return {'loss': loss, 'psnr': psnr, 'ssim': ssim}
 
     @tf.function
