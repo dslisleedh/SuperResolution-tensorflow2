@@ -63,10 +63,13 @@ class GaussianBlur:
 
 
 class Patches(tf.keras.layers.Layer):
-    def __init__(self, patch_size, strides):
+    def __init__(self, patch_size, strides=None):
         super(Patches, self).__init__()
         self.patch_size = patch_size
-        self.strides = strides
+        if strides is None:
+            self.strides = patch_size
+        else:
+            self.strides = strides
 
     def call(self, images):
         b, h, w, c = images.get_shape().as_list()
@@ -84,7 +87,7 @@ class Patches(tf.keras.layers.Layer):
 
 
 class DegradationLayer(tf.keras.layers.Layer):
-    def __init__(self, noise_max=25 / 255, blur_sigma=10, scale_rate=4):
+    def __init__(self, noise_max=25/255, blur_sigma=10, scale_rate=4):
         super(DegradationLayer, self).__init__()
         self.noise = noise_max
         self.blur_sigma = blur_sigma
@@ -119,6 +122,19 @@ class PixelShuffle(tf.keras.layers.Layer):
 
     def call(self, inputs, *args, **kwargs):
         return tf.nn.depth_to_space(inputs,
+                                    block_size=self.scale_rate
+                                    )
+
+
+class UnPixelShuffle(tf.keras.layers.Layer):
+    def __init__(self,
+                 scale_rate
+                 ):
+        super(UnPixelShuffle, self).__init__()
+        self.scale_rate = scale_rate
+
+    def call(self, inputs, *args, **kwargs):
+        return tf.nn.space_to_depth(inputs,
                                     block_size=self.scale_rate
                                     )
 
