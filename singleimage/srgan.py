@@ -27,7 +27,7 @@ class ResidualBlock(tf.keras.layers.Layer):
         ])
 
     @tf.function
-    def call(self, inputs, *args, **kwargs):
+    def call(self, inputs):
         return self.forward(inputs) + inputs
 
 
@@ -247,3 +247,4 @@ class SRGAN(tf.keras.models.Model):
     @tf.function
     def call(self, inputs, training=None, mask=None):
         return self.generator(inputs)
+
