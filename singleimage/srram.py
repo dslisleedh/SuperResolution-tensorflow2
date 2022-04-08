@@ -1,38 +1,6 @@
+from utils import PixelShuffle
 import tensorflow as tf
-import tensorflow_addons as tfa
-from einops import rearrange
-from einops.layers.keras import Rearrange
-from utils import *
 
-
-class AttentionModule(tf.keras.layers.Layer):
-    def __init__(self,
-                 c,
-                 r
-                 ):
-        super(AttentionModule, self).__init__()
-        self.c = c
-        self.r = r
-
-        self.ca = tf.keras.Sequential([
-            tf.keras.layers.Dense(self.r,
-                                  activation='relu'
-                                  ),
-            tf.keras.layers.Dense(self.c,
-                                  activation='linear'
-                                  )
-        ])
-        self.sa = tf.keras.layers.DepthwiseConv2D(kernel_size=3,
-                                                  padding='SAME',
-                                                  activation='linear'
-                                                  )
-
-    def call(self, inputs, *args, **kwargs):
-        _, var = tf.nn.moments(inputs,
-                               axes=[1, 2],
-                               keepdims=True
-                               )
-        return tf.nn.sigmoid(self.ca(var) + self.sa(inputs))
 
 
 class RAM(tf.keras.layers.Layer):
@@ -58,11 +26,26 @@ class RAM(tf.keras.layers.Layer):
                                    activation='linear'
                                    )
         ])
-        self.attention = AttentionModule(self.c, self.r)
+        self.ca = tf.keras.Sequential([
+            tf.keras.layers.Dense(self.r,
+                                  activation='relu'
+                                  ),
+            tf.keras.layers.Dense(self.c,
+                                  activation='linear'
+                                  )
+        ])
+        self.sa = tf.keras.layers.DepthwiseConv2D(kernel_size=3,
+                                                  padding='SAME',
+                                                  activation='linear'
+                                                  )
 
     def call(self, inputs, *args, **kwargs):
         residual = self.forward(inputs)
-        residual *= self.attention(residual)
+        _, var = tf.nn.moments(inputs,
+                               axes=[1, 2],
+                               keepdims=True
+                               )
+        residual *= tf.nn.sigmoid(self.ca(var) + self.sa(inputs))
         return inputs + residual
 
 
