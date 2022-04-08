@@ -1,62 +1,59 @@
 from utils import PixelShuffle
 import tensorflow as tf
-'''
-https://deepai.org/publication/ram-residual-attention-module-for-single-image-super-resolution
-use L1 loss to reconstruction
-'''
 
 
-class RAM(tf.keras.layers.Layer):
+class MAMB(tf.keras.layers.Layer):
     def __init__(self,
                  c
                  ):
-        super(RAM, self).__init__()
+        super(MAMB, self).__init__()
         self.c = c
 
         self.forward = tf.keras.Sequential([
-            tf.keras.layers.Conv2D(filters=self.c,
+            tf.keras.layers.Conv2D(self.c,
                                    kernel_size=3,
-                                   strides=1,
                                    padding='SAME',
+                                   strides=1,
                                    activation='relu'
                                    ),
-            tf.keras.layers.Conv2D(filters=self.c,
+            tf.keras.layers.Conv2D(self.c,
                                    kernel_size=3,
-                                   strides=1,
                                    padding='SAME',
+                                   strides=1,
                                    activation='linear'
                                    )
         ])
-        self.ca = tf.keras.Sequential([
-            tf.keras.layers.Dense(self.c // 16,
+        self.icd = tf.keras.Sequential([
+            tf.keras.layers.Dense(self.c//16,
                                   activation='relu'
                                   ),
             tf.keras.layers.Dense(self.c,
                                   activation='linear'
                                   )
         ])
-        self.sa = tf.keras.layers.DepthwiseConv2D(kernel_size=3,
-                                                  padding='SAME',
-                                                  activation='linear'
-                                                  )
+        self.csd = tf.keras.layers.DepthwiseConv2D(kernel_size=3,
+                                                   activation='linear',
+                                                   padding='SAME',
+                                                   strides=1
+                                                   )
 
     def call(self, inputs, *args, **kwargs):
         residual = self.forward(inputs)
-        _, var = tf.nn.moments(inputs,
+        _, var = tf.nn.moments(residual,
                                axes=[1, 2],
                                keepdims=True
                                )
-        residual *= tf.nn.sigmoid(self.ca(var) + self.sa(inputs))
-        return inputs + residual
+        residual *= tf.nn.sigmoid(var + self.icd(var) + self.csd(residual))
+        return residual + inputs
 
 
-class SRRAM(tf.keras.models.Model):
+class MAMNet(tf.keras.models.Model):
     def __init__(self,
                  upsample_rate,
-                 c=64,
-                 r=16
+                 r=16,
+                 c=64
                  ):
-        super(SRRAM, self).__init__()
+        super(MAMNet, self).__init__()
         self.c = c
         self.r = r
         self.upsample_rate = upsample_rate
@@ -68,7 +65,7 @@ class SRRAM(tf.keras.models.Model):
                                                         activation='linear'
                                                         )
         self.residual_blocks = tf.keras.Sequential([
-            RAM(self.c) for _ in range(self.r)
+            MAMB(self.c) for _ in range(self.r)
         ] + [
             tf.keras.layers.Conv2D(self.c,
                                    kernel_size=3,
