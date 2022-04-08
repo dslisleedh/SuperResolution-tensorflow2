@@ -1,5 +1,10 @@
 from utils import PixelShuffle
 import tensorflow as tf
+'''
+https://arxiv.org/pdf/1811.12043.pdf
+use L1 loss to reconstruction
+48x48 random cropped patch learning
+'''
 
 
 class MAMB(tf.keras.layers.Layer):
