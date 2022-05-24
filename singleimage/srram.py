@@ -115,10 +115,10 @@ class SRRAM(tf.keras.models.Model):
                                        )
             ])
 
-    def forward(self, x):
-        x = self.feature_extractor(x)
-        x = self.residual_blocks(x) + x
-        x = self.upscaling(x)
+    def forward(self, x, training=False):
+        x = self.feature_extractor(x, training=training)
+        x = self.residual_blocks(x, training=training) + x
+        x = self.upscaling(x, training=training)
         return x
 
     def call(self, inputs, training=None, mask=None):

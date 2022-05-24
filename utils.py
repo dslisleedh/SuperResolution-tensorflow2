@@ -2,10 +2,19 @@ from einops import rearrange
 import tensorflow as tf
 
 
-@tf.function
-def compute_metrics(label, pred):
-    psnr = tf.reduce_mean(tf.image.psnr(pred, label, 1.))
-    ssim = tf.reduce_mean(tf.image.ssim(pred, label, 1.))
+def compute_metrics(label, pred, mode='y'):
+    label = tf.cast(tf.cast(label * 255, tf.int16), 'float32')
+    pred = tf.cast(tf.cast(pred * 255, tf.int16), 'float32')
+    if mode == 'y':
+        label = tf.image.rgb_to_yuv(label)
+        label = tf.split(label, num_or_size_splits=3, axis=-1)[0]
+        pred = tf.image.rgb_to_yuv(pred)
+        pred = tf.split(pred, num_or_size_splits=3, axis=-1)[0]
+        psnr = tf.reduce_mean(tf.image.psnr(pred, label, 235))
+        ssim = tf.reduce_mean(tf.image.ssim(pred, label, 235))
+    else:
+        psnr = tf.reduce_mean(tf.image.psnr(pred, label, 255))
+        ssim = tf.reduce_mean(tf.image.ssim(pred, label, 255))
     return psnr, ssim
 
 
